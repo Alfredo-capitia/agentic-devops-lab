@@ -22,6 +22,10 @@ var assertionMismatch = regexp.MustCompile(
 	`([\w./-]+\.go):(\d+): expected "([^"]*)", got "([^"]*)"`,
 )
 
+var compileFailure = regexp.MustCompile(
+	`(?m)^(\./?[\w./-]+\.go:\d+:\d+:\s+.+)`,
+)
+
 func analyze(log string) Report {
 	match := assertionMismatch.FindStringSubmatch(log)
 
@@ -38,11 +42,24 @@ func analyze(log string) Report {
 		}
 	}
 
+	compileMatch := compileFailure.FindString(log)
+	if compileMatch != "" {
+		return Report{
+			Category:    "compile_failure",
+			Severity:    "high",
+			FailedStep:  "Build application",
+			Evidence:    compileMatch,
+			Cause:       "The Go compiler reported a source-level compilation error.",
+			Remediation: "Inspect the reported file and line, correct the compilation issue, and rerun the tests.",
+			Confidence:  "high",
+		}
+	}
+
 	return Report{
 		Category:    "unknown_failure",
 		Severity:    "undetermined",
 		FailedStep:  "unknown",
-		Evidence:    "No recognized test assertion mismatch was found.",
+		Evidence:    "No recognized test assertion mismatch or compilation error was found.",
 		Cause:       "The available log does not provide enough evidence for classification.",
 		Remediation: "Inspect the complete CI logs and identify the failing step.",
 		Confidence:  "low",
