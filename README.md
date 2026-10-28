@@ -20,6 +20,6 @@ deploy software, or access production credentials.
 
 - [x] GitHub CLI authenticated
 - [x] SSH configured for Git operations
-- [ ] Remote repository created
+- [x] Remote repository created
 - [ ] AI engine selected
 - [ ] First agentic workflow configured
