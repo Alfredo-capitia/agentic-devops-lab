@@ -70,15 +70,25 @@ func analyze(log string) Investigation {
 	// Go vet
 	vetLog, hasVet := sectionLog(log, "GO VET")
 	if hasVet && vetLog != "" {
-		failures = append(failures, Report{
-			Category:    "vet_failure",
-			Severity:    "medium",
-			FailedStep:  "Run go vet",
-			Evidence:    vetLog,
-			Cause:       "Go vet reported a potential code issue.",
-			Remediation: "Review the diagnostic and correct the underlying issue.",
-			Confidence:  "high",
-		})
+		vetDiagnostics := strings.Split(vetLog, "\n")
+
+		for _, diagnostic := range vetDiagnostics {
+			diagnostic = strings.TrimSpace(diagnostic)
+
+			if diagnostic == "" {
+				continue
+			}
+
+			failures = append(failures, Report{
+				Category:    "vet_failure",
+				Severity:    "medium",
+				FailedStep:  "Run go vet",
+				Evidence:    diagnostic,
+				Cause:       "Go vet reported a potential code issue.",
+				Remediation: "Review the diagnostic and correct the underlying issue.",
+				Confidence:  "high",
+			})
+		}
 	}
 
 	// Tests

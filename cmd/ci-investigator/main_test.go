@@ -255,3 +255,35 @@ func TestAnalyzeDoesNotMisclassifyGenericError(t *testing.T) {
 			report.Category)
 	}
 }
+
+func TestAnalyzeReturnsAllVetDiagnostics(t *testing.T) {
+	log := `=== GO VET ===
+main.go:10:2: printf: invalid format
+internal/server.go:25:4: unreachable code`
+
+	investigation := analyze(log)
+
+	if len(investigation.Failures) != 2 {
+		t.Fatalf("got %d failures, want 2",
+			len(investigation.Failures))
+	}
+
+	expectedEvidence := []string{
+		"main.go:10:2",
+		"internal/server.go:25:4",
+	}
+
+	for i, expected := range expectedEvidence {
+		failure := investigation.Failures[i]
+
+		if failure.Category != "vet_failure" {
+			t.Errorf("Failures[%d].Category = %q, want vet_failure",
+				i, failure.Category)
+		}
+
+		if !strings.Contains(failure.Evidence, expected) {
+			t.Errorf("Failures[%d].Evidence = %q, want %q",
+				i, failure.Evidence, expected)
+		}
+	}
+}
