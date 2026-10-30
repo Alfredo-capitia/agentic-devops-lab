@@ -56,15 +56,26 @@ func analyze(log string) Investigation {
 	if hasFormat &&
 		formatLog != "" &&
 		!strings.Contains(formatLog, "All Go files are formatted.") {
-		failures = append(failures, Report{
-			Category:    "format_failure",
-			Severity:    "medium",
-			FailedStep:  "Check formatting",
-			Evidence:    formatLog,
-			Cause:       "One or more Go files are not correctly formatted.",
-			Remediation: "Run gofmt on the reported files and rerun CI.",
-			Confidence:  "high",
-		})
+
+		formatFiles := strings.Split(formatLog, "\n")
+
+		for _, file := range formatFiles {
+			file = strings.TrimSpace(file)
+
+			if file == "" {
+				continue
+			}
+
+			failures = append(failures, Report{
+				Category:    "format_failure",
+				Severity:    "medium",
+				FailedStep:  "Check formatting",
+				Evidence:    file,
+				Cause:       "One or more Go files are not correctly formatted.",
+				Remediation: "Run gofmt on the reported file and rerun CI.",
+				Confidence:  "high",
+			})
+		}
 	}
 
 	// Go vet
@@ -118,7 +129,9 @@ func analyze(log string) Investigation {
 		buildLog = log
 	}
 
-	if match := compileFailure.FindString(buildLog); match != "" {
+	compileMatches := compileFailure.FindAllString(buildLog, -1)
+
+	for _, match := range compileMatches {
 		failures = append(failures, Report{
 			Category:    "compile_failure",
 			Severity:    "high",

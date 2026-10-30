@@ -287,3 +287,37 @@ internal/server.go:25:4: unreachable code`
 		}
 	}
 }
+
+func TestAnalyzeReturnsAllFormattingFailures(t *testing.T) {
+	log := `=== FORMATTING ===
+main.go
+internal/server.go
+cmd/worker.go`
+
+	investigation := analyze(log)
+
+	if len(investigation.Failures) != 3 {
+		t.Fatalf("got %d failures, want 3",
+			len(investigation.Failures))
+	}
+
+	expectedFiles := []string{
+		"main.go",
+		"internal/server.go",
+		"cmd/worker.go",
+	}
+
+	for i, expected := range expectedFiles {
+		failure := investigation.Failures[i]
+
+		if failure.Category != "format_failure" {
+			t.Errorf("Failures[%d].Category = %q, want format_failure",
+				i, failure.Category)
+		}
+
+		if !strings.Contains(failure.Evidence, expected) {
+			t.Errorf("Failures[%d].Evidence = %q, want %q",
+				i, failure.Evidence, expected)
+		}
+	}
+}
