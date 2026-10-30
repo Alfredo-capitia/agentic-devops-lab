@@ -321,3 +321,42 @@ cmd/worker.go`
 		}
 	}
 }
+func TestAnalyzeReturnsAllCompileFailures(t *testing.T) {
+	log := `=== BUILD ===
+# example.com/app
+./main.go:12:2: undefined: missingFunction
+./internal/server.go:25:4: undefined: missingHandler
+./cmd/worker.go:40:3: undefined: missingWorker`
+
+	investigation := analyze(log)
+
+	if len(investigation.Failures) != 3 {
+		t.Fatalf("got %d failures, want 3",
+			len(investigation.Failures))
+	}
+
+	expectedEvidence := []string{
+		"./main.go:12:2",
+		"./internal/server.go:25:4",
+		"./cmd/worker.go:40:3",
+	}
+
+	for i, expected := range expectedEvidence {
+		failure := investigation.Failures[i]
+
+		if failure.Category != "compile_failure" {
+			t.Errorf("Failures[%d].Category = %q, want compile_failure",
+				i, failure.Category)
+		}
+
+		if !strings.Contains(failure.Evidence, expected) {
+			t.Errorf("Failures[%d].Evidence = %q, want %q",
+				i, failure.Evidence, expected)
+		}
+
+		if failure.Severity != "high" {
+			t.Errorf("Failures[%d].Severity = %q, want high",
+				i, failure.Severity)
+		}
+	}
+}
