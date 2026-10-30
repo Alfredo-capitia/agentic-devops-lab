@@ -19,6 +19,10 @@ type Report struct {
 	Confidence  string `json:"confidence"`
 }
 
+type Investigation struct {
+	Failures []Report `json:"failures"`
+}
+
 var assertionMismatch = regexp.MustCompile(
 	`([\w./-]+\.go):(\d+): expected "([^"]*)", got "([^"]*)"`,
 )
@@ -44,12 +48,15 @@ func sectionLog(log, section string) (string, bool) {
 	return strings.TrimSpace(content), true
 }
 
-func analyze(log string) Report {
+func analyze(log string) Investigation {
+	var failures []Report
+
+	// Formatting
 	formatLog, hasFormat := sectionLog(log, "FORMATTING")
 	if hasFormat &&
 		formatLog != "" &&
 		!strings.Contains(formatLog, "All Go files are formatted.") {
-		return Report{
+		failures = append(failures, Report{
 			Category:    "format_failure",
 			Severity:    "medium",
 			FailedStep:  "Check formatting",
@@ -57,12 +64,13 @@ func analyze(log string) Report {
 			Cause:       "One or more Go files are not correctly formatted.",
 			Remediation: "Run gofmt on the reported files and rerun CI.",
 			Confidence:  "high",
-		}
+		})
 	}
 
+	// Go vet
 	vetLog, hasVet := sectionLog(log, "GO VET")
 	if hasVet && vetLog != "" {
-		return Report{
+		failures = append(failures, Report{
 			Category:    "vet_failure",
 			Severity:    "medium",
 			FailedStep:  "Run go vet",
@@ -70,17 +78,17 @@ func analyze(log string) Report {
 			Cause:       "Go vet reported a potential code issue.",
 			Remediation: "Review the diagnostic and correct the underlying issue.",
 			Confidence:  "high",
-		}
+		})
 	}
 
+	// Tests
 	testLog, hasTests := sectionLog(log, "TESTS")
 	if !hasTests {
 		testLog = log
 	}
 
-	match := assertionMismatch.FindStringSubmatch(testLog)
-	if match != nil {
-		return Report{
+	if match := assertionMismatch.FindStringSubmatch(testLog); match != nil {
+		failures = append(failures, Report{
 			Category:   "test_assertion_mismatch",
 			Severity:   "medium",
 			FailedStep: "Run tests",
@@ -89,35 +97,42 @@ func analyze(log string) Report {
 			Cause:       "The test expectation differs from the actual value.",
 			Remediation: "Review the test expectation and application behavior before changing code.",
 			Confidence:  "high",
-		}
+		})
 	}
 
+	// Build
 	buildLog, hasBuild := sectionLog(log, "BUILD")
 	if !hasBuild {
 		buildLog = log
 	}
 
-	compileMatch := compileFailure.FindString(buildLog)
-	if compileMatch != "" {
-		return Report{
+	if match := compileFailure.FindString(buildLog); match != "" {
+		failures = append(failures, Report{
 			Category:    "compile_failure",
 			Severity:    "high",
 			FailedStep:  "Build application",
-			Evidence:    compileMatch,
+			Evidence:    match,
 			Cause:       "The Go compiler reported a source-level compilation error.",
 			Remediation: "Inspect the reported file and line, correct the compilation issue, and rerun the tests.",
 			Confidence:  "high",
-		}
+		})
 	}
 
-	return Report{
-		Category:    "unknown_failure",
-		Severity:    "undetermined",
-		FailedStep:  "unknown",
-		Evidence:    "No recognized failure pattern was found.",
-		Cause:       "The available log does not provide enough evidence for classification.",
-		Remediation: "Inspect the complete CI logs and identify the failing step.",
-		Confidence:  "low",
+	// Unknown failure
+	if len(failures) == 0 {
+		failures = append(failures, Report{
+			Category:    "unknown_failure",
+			Severity:    "undetermined",
+			FailedStep:  "unknown",
+			Evidence:    "No recognized failure pattern was found.",
+			Cause:       "The available log does not provide enough evidence for classification.",
+			Remediation: "Inspect the complete CI logs and identify the failing step.",
+			Confidence:  "low",
+		})
+	}
+
+	return Investigation{
+		Failures: failures,
 	}
 }
 
@@ -128,12 +143,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	report := analyze(string(log))
+	investigation := analyze(string(log))
 
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")
 
-	if err := encoder.Encode(report); err != nil {
+	if err := encoder.Encode(investigation); err != nil {
 		fmt.Fprintln(os.Stderr, "encode report:", err)
 		os.Exit(1)
 	}
