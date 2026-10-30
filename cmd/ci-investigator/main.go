@@ -27,8 +27,12 @@ var assertionMismatch = regexp.MustCompile(
 	`([\w./-]+\.go):(\d+): expected "([^"]*)", got "([^"]*)"`,
 )
 
+var vetDiagnostic = regexp.MustCompile(
+	`^(.+\.go:\d+:\d+:\s+.+)$`,
+)
+
 var compileFailure = regexp.MustCompile(
-	`(?m)^(\./?[\w./-]+\.go:\d+:\d+:\s+.+)`,
+	`(?m)^((?:\./)?[\w./-]+\.go:\d+:\d+:\s+.+)$`,
 )
 
 func sectionLog(log, section string) (string, bool) {
@@ -50,6 +54,8 @@ func sectionLog(log, section string) (string, bool) {
 
 func analyze(log string) Investigation {
 	var failures []Report
+
+	hasSections := strings.Contains(log, "=== ")
 
 	// Formatting
 	formatLog, hasFormat := sectionLog(log, "FORMATTING")
@@ -81,12 +87,10 @@ func analyze(log string) Investigation {
 	// Go vet
 	vetLog, hasVet := sectionLog(log, "GO VET")
 	if hasVet && vetLog != "" {
-		vetDiagnostics := strings.Split(vetLog, "\n")
+		for _, line := range strings.Split(vetLog, "\n") {
+			diagnostic := strings.TrimSpace(line)
 
-		for _, diagnostic := range vetDiagnostics {
-			diagnostic = strings.TrimSpace(diagnostic)
-
-			if diagnostic == "" {
+			if !vetDiagnostic.MatchString(diagnostic) {
 				continue
 			}
 
@@ -104,43 +108,49 @@ func analyze(log string) Investigation {
 
 	// Tests
 	testLog, hasTests := sectionLog(log, "TESTS")
-	if !hasTests {
+
+	if !hasTests && !hasSections {
 		testLog = log
 	}
 
-	matches := assertionMismatch.FindAllStringSubmatch(testLog, -1)
+	if hasTests || !hasSections {
+		matches := assertionMismatch.FindAllStringSubmatch(testLog, -1)
 
-	for _, match := range matches {
-		failures = append(failures, Report{
-			Category:   "test_assertion_mismatch",
-			Severity:   "medium",
-			FailedStep: "Run tests",
-			Evidence: fmt.Sprintf("%s:%s: expected %q, got %q",
-				match[1], match[2], match[3], match[4]),
-			Cause:       "The test expectation differs from the actual value.",
-			Remediation: "Review the test expectation and application behavior before changing code.",
-			Confidence:  "high",
-		})
+		for _, match := range matches {
+			failures = append(failures, Report{
+				Category:   "test_assertion_mismatch",
+				Severity:   "medium",
+				FailedStep: "Run tests",
+				Evidence: fmt.Sprintf("%s:%s: expected %q, got %q",
+					match[1], match[2], match[3], match[4]),
+				Cause:       "The test expectation differs from the actual value.",
+				Remediation: "Review the test expectation and application behavior before changing code.",
+				Confidence:  "high",
+			})
+		}
 	}
 
 	// Build
 	buildLog, hasBuild := sectionLog(log, "BUILD")
-	if !hasBuild {
+
+	if !hasBuild && !hasSections {
 		buildLog = log
 	}
 
-	compileMatches := compileFailure.FindAllString(buildLog, -1)
+	if hasBuild || !hasSections {
+		compileMatches := compileFailure.FindAllString(buildLog, -1)
 
-	for _, match := range compileMatches {
-		failures = append(failures, Report{
-			Category:    "compile_failure",
-			Severity:    "high",
-			FailedStep:  "Build application",
-			Evidence:    match,
-			Cause:       "The Go compiler reported a source-level compilation error.",
-			Remediation: "Inspect the reported file and line, correct the compilation issue, and rerun the tests.",
-			Confidence:  "high",
-		})
+		for _, match := range compileMatches {
+			failures = append(failures, Report{
+				Category:    "compile_failure",
+				Severity:    "high",
+				FailedStep:  "Build application",
+				Evidence:    match,
+				Cause:       "The Go compiler reported a source-level compilation error.",
+				Remediation: "Inspect the reported file and line, correct the compilation issue, and rerun the tests.",
+				Confidence:  "high",
+			})
+		}
 	}
 
 	// Unknown failure

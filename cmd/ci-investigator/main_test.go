@@ -360,3 +360,29 @@ func TestAnalyzeReturnsAllCompileFailures(t *testing.T) {
 		}
 	}
 }
+func TestAnalyzeVetIgnoresPackageHeaders(t *testing.T) {
+	log := `=== GO VET ===
+# example.com/app
+./main.go:10:2: printf: invalid format
+# example.com/app/internal
+./internal/server.go:25:4: unreachable code`
+
+	investigation := analyze(log)
+
+	if len(investigation.Failures) != 2 {
+		t.Fatalf("got %d failures, want 2",
+			len(investigation.Failures))
+	}
+
+	expectedEvidence := []string{
+		"./main.go:10:2",
+		"./internal/server.go:25:4",
+	}
+
+	for i, expected := range expectedEvidence {
+		if !strings.Contains(investigation.Failures[i].Evidence, expected) {
+			t.Errorf("Failures[%d].Evidence = %q, want %q",
+				i, investigation.Failures[i].Evidence, expected)
+		}
+	}
+}
