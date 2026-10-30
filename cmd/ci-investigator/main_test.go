@@ -86,19 +86,36 @@ func TestAnalyzeAssertionMismatchWithNestedPath(t *testing.T) {
 	}
 }
 
-func TestAnalyzeUsesFirstRecognizedMismatch(t *testing.T) {
+func TestAnalyzeReturnsAllAssertionMismatches(t *testing.T) {
 	log := `first_test.go:10: expected "one", got "two"
-second_test.go:20: expected "three", got "four"`
+second_test.go:20: expected "three", got "four"
+third_test.go:30: expected "five", got "six"`
 
-	report := requireSingleFailure(t, analyze(log))
+	investigation := analyze(log)
 
-	if !strings.Contains(report.Evidence, "first_test.go:10") {
-		t.Errorf("Expected first mismatch, got evidence: %q", report.Evidence)
+	if len(investigation.Failures) != 3 {
+		t.Fatalf("got %d failures, want 3",
+			len(investigation.Failures))
 	}
 
-	if strings.Contains(report.Evidence, "second_test.go:20") {
-		t.Errorf("Expected only the first mismatch, got evidence: %q",
-			report.Evidence)
+	expectedFiles := []string{
+		"first_test.go:10",
+		"second_test.go:20",
+		"third_test.go:30",
+	}
+
+	for i, expected := range expectedFiles {
+		if !strings.Contains(investigation.Failures[i].Evidence, expected) {
+			t.Errorf("Failures[%d] evidence = %q, want location %q",
+				i, investigation.Failures[i].Evidence, expected)
+		}
+	}
+
+	for i, failure := range investigation.Failures {
+		if failure.Category != "test_assertion_mismatch" {
+			t.Errorf("Failures[%d].Category = %q, want test_assertion_mismatch",
+				i, failure.Category)
+		}
 	}
 }
 

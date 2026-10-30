@@ -87,7 +87,9 @@ func analyze(log string) Investigation {
 		testLog = log
 	}
 
-	if match := assertionMismatch.FindStringSubmatch(testLog); match != nil {
+	matches := assertionMismatch.FindAllStringSubmatch(testLog, -1)
+
+	for _, match := range matches {
 		failures = append(failures, Report{
 			Category:   "test_assertion_mismatch",
 			Severity:   "medium",
