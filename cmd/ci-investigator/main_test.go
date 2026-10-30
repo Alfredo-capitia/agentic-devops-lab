@@ -86,19 +86,36 @@ func TestAnalyzeAssertionMismatchWithNestedPath(t *testing.T) {
 	}
 }
 
-func TestAnalyzeUsesFirstRecognizedMismatch(t *testing.T) {
+func TestAnalyzeReturnsAllAssertionMismatches(t *testing.T) {
 	log := `first_test.go:10: expected "one", got "two"
-second_test.go:20: expected "three", got "four"`
+second_test.go:20: expected "three", got "four"
+third_test.go:30: expected "five", got "six"`
 
-	report := requireSingleFailure(t, analyze(log))
+	investigation := analyze(log)
 
-	if !strings.Contains(report.Evidence, "first_test.go:10") {
-		t.Errorf("Expected first mismatch, got evidence: %q", report.Evidence)
+	if len(investigation.Failures) != 3 {
+		t.Fatalf("got %d failures, want 3",
+			len(investigation.Failures))
 	}
 
-	if strings.Contains(report.Evidence, "second_test.go:20") {
-		t.Errorf("Expected only the first mismatch, got evidence: %q",
-			report.Evidence)
+	expectedFiles := []string{
+		"first_test.go:10",
+		"second_test.go:20",
+		"third_test.go:30",
+	}
+
+	for i, expected := range expectedFiles {
+		if !strings.Contains(investigation.Failures[i].Evidence, expected) {
+			t.Errorf("Failures[%d] evidence = %q, want location %q",
+				i, investigation.Failures[i].Evidence, expected)
+		}
+	}
+
+	for i, failure := range investigation.Failures {
+		if failure.Category != "test_assertion_mismatch" {
+			t.Errorf("Failures[%d].Category = %q, want test_assertion_mismatch",
+				i, failure.Category)
+		}
 	}
 }
 
@@ -236,5 +253,136 @@ func TestAnalyzeDoesNotMisclassifyGenericError(t *testing.T) {
 	if report.Category != "unknown_failure" {
 		t.Errorf("Category = %q, want unknown_failure",
 			report.Category)
+	}
+}
+
+func TestAnalyzeReturnsAllVetDiagnostics(t *testing.T) {
+	log := `=== GO VET ===
+main.go:10:2: printf: invalid format
+internal/server.go:25:4: unreachable code`
+
+	investigation := analyze(log)
+
+	if len(investigation.Failures) != 2 {
+		t.Fatalf("got %d failures, want 2",
+			len(investigation.Failures))
+	}
+
+	expectedEvidence := []string{
+		"main.go:10:2",
+		"internal/server.go:25:4",
+	}
+
+	for i, expected := range expectedEvidence {
+		failure := investigation.Failures[i]
+
+		if failure.Category != "vet_failure" {
+			t.Errorf("Failures[%d].Category = %q, want vet_failure",
+				i, failure.Category)
+		}
+
+		if !strings.Contains(failure.Evidence, expected) {
+			t.Errorf("Failures[%d].Evidence = %q, want %q",
+				i, failure.Evidence, expected)
+		}
+	}
+}
+
+func TestAnalyzeReturnsAllFormattingFailures(t *testing.T) {
+	log := `=== FORMATTING ===
+main.go
+internal/server.go
+cmd/worker.go`
+
+	investigation := analyze(log)
+
+	if len(investigation.Failures) != 3 {
+		t.Fatalf("got %d failures, want 3",
+			len(investigation.Failures))
+	}
+
+	expectedFiles := []string{
+		"main.go",
+		"internal/server.go",
+		"cmd/worker.go",
+	}
+
+	for i, expected := range expectedFiles {
+		failure := investigation.Failures[i]
+
+		if failure.Category != "format_failure" {
+			t.Errorf("Failures[%d].Category = %q, want format_failure",
+				i, failure.Category)
+		}
+
+		if !strings.Contains(failure.Evidence, expected) {
+			t.Errorf("Failures[%d].Evidence = %q, want %q",
+				i, failure.Evidence, expected)
+		}
+	}
+}
+func TestAnalyzeReturnsAllCompileFailures(t *testing.T) {
+	log := `=== BUILD ===
+# example.com/app
+./main.go:12:2: undefined: missingFunction
+./internal/server.go:25:4: undefined: missingHandler
+./cmd/worker.go:40:3: undefined: missingWorker`
+
+	investigation := analyze(log)
+
+	if len(investigation.Failures) != 3 {
+		t.Fatalf("got %d failures, want 3",
+			len(investigation.Failures))
+	}
+
+	expectedEvidence := []string{
+		"./main.go:12:2",
+		"./internal/server.go:25:4",
+		"./cmd/worker.go:40:3",
+	}
+
+	for i, expected := range expectedEvidence {
+		failure := investigation.Failures[i]
+
+		if failure.Category != "compile_failure" {
+			t.Errorf("Failures[%d].Category = %q, want compile_failure",
+				i, failure.Category)
+		}
+
+		if !strings.Contains(failure.Evidence, expected) {
+			t.Errorf("Failures[%d].Evidence = %q, want %q",
+				i, failure.Evidence, expected)
+		}
+
+		if failure.Severity != "high" {
+			t.Errorf("Failures[%d].Severity = %q, want high",
+				i, failure.Severity)
+		}
+	}
+}
+func TestAnalyzeVetIgnoresPackageHeaders(t *testing.T) {
+	log := `=== GO VET ===
+# example.com/app
+./main.go:10:2: printf: invalid format
+# example.com/app/internal
+./internal/server.go:25:4: unreachable code`
+
+	investigation := analyze(log)
+
+	if len(investigation.Failures) != 2 {
+		t.Fatalf("got %d failures, want 2",
+			len(investigation.Failures))
+	}
+
+	expectedEvidence := []string{
+		"./main.go:10:2",
+		"./internal/server.go:25:4",
+	}
+
+	for i, expected := range expectedEvidence {
+		if !strings.Contains(investigation.Failures[i].Evidence, expected) {
+			t.Errorf("Failures[%d].Evidence = %q, want %q",
+				i, investigation.Failures[i].Evidence, expected)
+		}
 	}
 }
