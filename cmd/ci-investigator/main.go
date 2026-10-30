@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strings"
 )
 
 type Report struct {
@@ -26,9 +27,58 @@ var compileFailure = regexp.MustCompile(
 	`(?m)^(\./?[\w./-]+\.go:\d+:\d+:\s+.+)`,
 )
 
-func analyze(log string) Report {
-	match := assertionMismatch.FindStringSubmatch(log)
+func sectionLog(log, section string) (string, bool) {
+	marker := "=== " + section + " ==="
+	start := strings.Index(log, marker)
 
+	if start == -1 {
+		return "", false
+	}
+
+	content := log[start+len(marker):]
+
+	if end := strings.Index(content, "=== "); end >= 0 {
+		content = content[:end]
+	}
+
+	return strings.TrimSpace(content), true
+}
+
+func analyze(log string) Report {
+	formatLog, hasFormat := sectionLog(log, "FORMATTING")
+	if hasFormat &&
+		formatLog != "" &&
+		!strings.Contains(formatLog, "All Go files are formatted.") {
+		return Report{
+			Category:    "format_failure",
+			Severity:    "medium",
+			FailedStep:  "Check formatting",
+			Evidence:    formatLog,
+			Cause:       "One or more Go files are not correctly formatted.",
+			Remediation: "Run gofmt on the reported files and rerun CI.",
+			Confidence:  "high",
+		}
+	}
+
+	vetLog, hasVet := sectionLog(log, "GO VET")
+	if hasVet && vetLog != "" {
+		return Report{
+			Category:    "vet_failure",
+			Severity:    "medium",
+			FailedStep:  "Run go vet",
+			Evidence:    vetLog,
+			Cause:       "Go vet reported a potential code issue.",
+			Remediation: "Review the diagnostic and correct the underlying issue.",
+			Confidence:  "high",
+		}
+	}
+
+	testLog, hasTests := sectionLog(log, "TESTS")
+	if !hasTests {
+		testLog = log
+	}
+
+	match := assertionMismatch.FindStringSubmatch(testLog)
 	if match != nil {
 		return Report{
 			Category:   "test_assertion_mismatch",
@@ -42,7 +92,12 @@ func analyze(log string) Report {
 		}
 	}
 
-	compileMatch := compileFailure.FindString(log)
+	buildLog, hasBuild := sectionLog(log, "BUILD")
+	if !hasBuild {
+		buildLog = log
+	}
+
+	compileMatch := compileFailure.FindString(buildLog)
 	if compileMatch != "" {
 		return Report{
 			Category:    "compile_failure",
@@ -59,7 +114,7 @@ func analyze(log string) Report {
 		Category:    "unknown_failure",
 		Severity:    "undetermined",
 		FailedStep:  "unknown",
-		Evidence:    "No recognized test assertion mismatch or compilation error was found.",
+		Evidence:    "No recognized failure pattern was found.",
 		Cause:       "The available log does not provide enough evidence for classification.",
 		Remediation: "Inspect the complete CI logs and identify the failing step.",
 		Confidence:  "low",
