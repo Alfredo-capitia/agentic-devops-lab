@@ -6,17 +6,26 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
+type SourceLocation struct {
+	File   string `json:"file"`
+	Line   int    `json:"line,omitempty"`
+	Column int    `json:"column,omitempty"`
+}
+
 type Report struct {
-	Category    string `json:"category"`
-	Severity    string `json:"severity"`
-	FailedStep  string `json:"failed_step"`
-	Evidence    string `json:"evidence"`
-	Cause       string `json:"probable_cause"`
-	Remediation string `json:"recommended_action"`
-	Confidence  string `json:"confidence"`
+	Category    string          `json:"category"`
+	Severity    string          `json:"severity"`
+	FailedStep  string          `json:"failed_step"`
+	Evidence    string          `json:"evidence"`
+	Location    *SourceLocation `json:"location,omitempty"`
+	Message     string          `json:"message,omitempty"`
+	Cause       string          `json:"probable_cause"`
+	Remediation string          `json:"recommended_action"`
+	Confidence  string          `json:"confidence"`
 }
 
 type Investigation struct {
@@ -28,7 +37,7 @@ var assertionMismatch = regexp.MustCompile(
 )
 
 var vetDiagnostic = regexp.MustCompile(
-	`^(.+\.go:\d+:\d+:\s+.+)$`,
+	`^(.+\.go):(\d+):(\d+):\s+(.+)$`,
 )
 
 var compileFailure = regexp.MustCompile(
@@ -85,20 +94,38 @@ func analyze(log string) Investigation {
 	}
 
 	// Go vet
+	// Go vet
 	vetLog, hasVet := sectionLog(log, "GO VET")
 	if hasVet && vetLog != "" {
 		for _, line := range strings.Split(vetLog, "\n") {
 			diagnostic := strings.TrimSpace(line)
 
-			if !vetDiagnostic.MatchString(diagnostic) {
+			match := vetDiagnostic.FindStringSubmatch(diagnostic)
+			if match == nil {
+				continue
+			}
+
+			lineNumber, err := strconv.Atoi(match[2])
+			if err != nil {
+				continue
+			}
+
+			columnNumber, err := strconv.Atoi(match[3])
+			if err != nil {
 				continue
 			}
 
 			failures = append(failures, Report{
-				Category:    "vet_failure",
-				Severity:    "medium",
-				FailedStep:  "Run go vet",
-				Evidence:    diagnostic,
+				Category:   "vet_failure",
+				Severity:   "medium",
+				FailedStep: "Run go vet",
+				Evidence:   diagnostic,
+				Location: &SourceLocation{
+					File:   match[1],
+					Line:   lineNumber,
+					Column: columnNumber,
+				},
+				Message:     match[4],
 				Cause:       "Go vet reported a potential code issue.",
 				Remediation: "Review the diagnostic and correct the underlying issue.",
 				Confidence:  "high",

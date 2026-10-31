@@ -247,6 +247,37 @@ func TestAnalyzeUnknownFailure(t *testing.T) {
 	}
 }
 
+func TestAnalyzeVetFailureIncludesStructuredLocation(t *testing.T) {
+	log := `=== GO VET ===
+internal/server.go:25:4: unreachable code`
+
+	report := requireSingleFailure(t, analyze(log))
+
+	if report.Location == nil {
+		t.Fatal("Location must not be nil")
+	}
+
+	if report.Location.File != "internal/server.go" {
+		t.Errorf("Location.File = %q, want internal/server.go",
+			report.Location.File)
+	}
+
+	if report.Location.Line != 25 {
+		t.Errorf("Location.Line = %d, want 25",
+			report.Location.Line)
+	}
+
+	if report.Location.Column != 4 {
+		t.Errorf("Location.Column = %d, want 4",
+			report.Location.Column)
+	}
+
+	if report.Message != "unreachable code" {
+		t.Errorf("Message = %q, want unreachable code",
+			report.Message)
+	}
+}
+
 func TestAnalyzeDoesNotMisclassifyGenericError(t *testing.T) {
 	report := requireSingleFailure(t, analyze("ERROR: connection timeout"))
 
