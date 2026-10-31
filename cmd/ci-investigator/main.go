@@ -61,6 +61,37 @@ func sectionLog(log, section string) (string, bool) {
 	return strings.TrimSpace(content), true
 }
 
+func unknownSection(log string) string {
+	knownSections := map[string]bool{
+		"FORMATTING": true,
+		"GO VET":     true,
+		"TESTS":      true,
+		"BUILD":      true,
+	}
+
+	for _, line := range strings.Split(log, "\n") {
+		line = strings.TrimSpace(line)
+
+		if !strings.HasPrefix(line, "=== ") ||
+			!strings.HasSuffix(line, " ===") {
+			continue
+		}
+
+		section := strings.TrimSpace(
+			strings.TrimSuffix(
+				strings.TrimPrefix(line, "=== "),
+				" ===",
+			),
+		)
+
+		if section != "" && !knownSections[section] {
+			return section
+		}
+	}
+
+	return "unknown"
+}
+
 func analyze(log string) Investigation {
 	var failures []Report
 
@@ -239,7 +270,7 @@ func analyze(log string) Investigation {
 		failures = append(failures, Report{
 			Category:    "unknown_failure",
 			Severity:    "undetermined",
-			FailedStep:  "unknown",
+			FailedStep:  unknownSection(log),
 			Evidence:    evidence,
 			Cause:       "The available log does not provide enough evidence for classification.",
 			Remediation: "Inspect the complete CI logs and identify the failing step.",

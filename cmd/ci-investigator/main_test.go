@@ -673,3 +673,45 @@ exit code: 1`
 		t.Errorf("Confidence = %q, want low", failure.Confidence)
 	}
 }
+func TestAnalyzeUnknownFailureIdentifiesStep(t *testing.T) {
+	log := `=== CUSTOM STEP ===
+ERROR: connection refused
+service: database
+exit code: 1`
+
+	investigation := analyze(log)
+
+	if len(investigation.Failures) != 1 {
+		t.Fatalf(
+			"got %d failures, want 1",
+			len(investigation.Failures),
+		)
+	}
+
+	failure := investigation.Failures[0]
+
+	if failure.Category != "unknown_failure" {
+		t.Errorf(
+			"Category = %q, want unknown_failure",
+			failure.Category,
+		)
+	}
+
+	if failure.FailedStep != "CUSTOM STEP" {
+		t.Errorf(
+			"FailedStep = %q, want CUSTOM STEP",
+			failure.FailedStep,
+		)
+	}
+
+	if failure.Confidence != "low" {
+		t.Errorf(
+			"Confidence = %q, want low",
+			failure.Confidence,
+		)
+	}
+
+	if failure.Evidence != strings.TrimSpace(log) {
+		t.Error("Original evidence was not preserved")
+	}
+}
