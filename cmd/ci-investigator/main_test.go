@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -247,6 +248,37 @@ func TestAnalyzeUnknownFailure(t *testing.T) {
 	}
 }
 
+func TestAnalyzeVetFailureIncludesStructuredLocation(t *testing.T) {
+	log := `=== GO VET ===
+internal/server.go:25:4: unreachable code`
+
+	report := requireSingleFailure(t, analyze(log))
+
+	if report.Location == nil {
+		t.Fatal("Location must not be nil")
+	}
+
+	if report.Location.File != "internal/server.go" {
+		t.Errorf("Location.File = %q, want internal/server.go",
+			report.Location.File)
+	}
+
+	if report.Location.Line != 25 {
+		t.Errorf("Location.Line = %d, want 25",
+			report.Location.Line)
+	}
+
+	if report.Location.Column != 4 {
+		t.Errorf("Location.Column = %d, want 4",
+			report.Location.Column)
+	}
+
+	if report.Message != "unreachable code" {
+		t.Errorf("Message = %q, want unreachable code",
+			report.Message)
+	}
+}
+
 func TestAnalyzeDoesNotMisclassifyGenericError(t *testing.T) {
 	report := requireSingleFailure(t, analyze("ERROR: connection timeout"))
 
@@ -384,5 +416,302 @@ func TestAnalyzeVetIgnoresPackageHeaders(t *testing.T) {
 			t.Errorf("Failures[%d].Evidence = %q, want %q",
 				i, investigation.Failures[i].Evidence, expected)
 		}
+	}
+}
+
+func TestAnalyzeCompileFailureIncludesStructuredLocation(t *testing.T) {
+	log := `=== BUILD ===
+internal/database/connection.go:42:5: undefined: missingFunction`
+
+	report := requireSingleFailure(t, analyze(log))
+
+	if report.Location == nil {
+		t.Fatal("Location must not be nil")
+	}
+
+	if report.Location.File != "internal/database/connection.go" {
+		t.Errorf("Location.File = %q, want internal/database/connection.go",
+			report.Location.File)
+	}
+
+	if report.Location.Line != 42 {
+		t.Errorf("Location.Line = %d, want 42", report.Location.Line)
+	}
+
+	if report.Location.Column != 5 {
+		t.Errorf("Location.Column = %d, want 5", report.Location.Column)
+	}
+
+	if report.Message != "undefined: missingFunction" {
+		t.Errorf("Message = %q, want undefined: missingFunction",
+			report.Message)
+	}
+}
+func TestAnalyzeTestFailureIncludesStructuredLocation(t *testing.T) {
+	log := `=== TESTS ===
+cmd/api_test.go:42: expected "success", got "failed"`
+
+	report := requireSingleFailure(t, analyze(log))
+
+	if report.Location == nil {
+		t.Fatal("Location must not be nil")
+	}
+
+	if report.Location.File != "cmd/api_test.go" {
+		t.Errorf("Location.File = %q, want cmd/api_test.go",
+			report.Location.File)
+	}
+
+	if report.Location.Line != 42 {
+		t.Errorf("Location.Line = %d, want 42", report.Location.Line)
+	}
+
+	if report.Message != `expected "success", got "failed"` {
+		t.Errorf("Message = %q, want expected \"success\", got \"failed\"",
+			report.Message)
+	}
+}
+func TestAnalyzeFormattingFailureIncludesStructuredLocation(t *testing.T) {
+	log := `=== FORMATTING ===
+internal/server.go`
+
+	report := requireSingleFailure(t, analyze(log))
+
+	if report.Location == nil {
+		t.Fatal("Location must not be nil")
+	}
+
+	if report.Location.File != "internal/server.go" {
+		t.Errorf("Location.File = %q, want internal/server.go",
+			report.Location.File)
+	}
+
+	if report.Message != "File is not formatted with gofmt." {
+		t.Errorf("Message = %q, want File is not formatted with gofmt.",
+			report.Message)
+	}
+}
+func TestAnalyzeJSONPreservesStructuredDiagnostics(t *testing.T) {
+	log := `=== FORMATTING ===
+internal/server.go
+=== GO VET ===
+internal/server.go:10:2: printf: invalid format
+=== TESTS ===
+cmd/api_test.go:42: expected "success", got "failed"
+=== BUILD ===
+./cmd/worker.go:20:3: undefined: missingWorker`
+
+	investigation := analyze(log)
+
+	data, err := json.Marshal(investigation)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	var result struct {
+		Failures []struct {
+			Category string `json:"category"`
+			Location *struct {
+				File   string `json:"file"`
+				Line   int    `json:"line"`
+				Column int    `json:"column"`
+			} `json:"location"`
+			Message string `json:"message"`
+		} `json:"failures"`
+	}
+
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	if len(result.Failures) != 4 {
+		t.Fatalf("got %d failures, want 4", len(result.Failures))
+	}
+
+	expectedCategories := []string{
+		"format_failure",
+		"vet_failure",
+		"test_assertion_mismatch",
+		"compile_failure",
+	}
+
+	for i, expected := range expectedCategories {
+		if result.Failures[i].Category != expected {
+			t.Errorf(
+				"Failures[%d].Category = %q, want %q",
+				i,
+				result.Failures[i].Category,
+				expected,
+			)
+		}
+
+		if result.Failures[i].Location == nil {
+			t.Fatalf("Failures[%d].Location is nil", i)
+		}
+	}
+
+	if result.Failures[0].Location.File != "internal/server.go" {
+		t.Errorf("Formatting location incorrect")
+	}
+
+	if result.Failures[1].Location.Column != 2 {
+		t.Errorf("Vet column = %d, want 2",
+			result.Failures[1].Location.Column)
+	}
+
+	if result.Failures[2].Location.Line != 42 {
+		t.Errorf("Test line = %d, want 42",
+			result.Failures[2].Location.Line)
+	}
+
+	if result.Failures[3].Location.Column != 3 {
+		t.Errorf("Compile column = %d, want 3",
+			result.Failures[3].Location.Column)
+	}
+
+	jsonOutput := string(data)
+
+	if !strings.Contains(jsonOutput,
+		`"location":{"file":"internal/server.go"}`) {
+		t.Error("Formatting JSON should omit unavailable line and column")
+	}
+
+	if !strings.Contains(jsonOutput,
+		`"message":"File is not formatted with gofmt."`) {
+		t.Error("Formatting message missing from JSON")
+	}
+}
+func TestAnalyzeUnknownFailurePreservesEvidence(t *testing.T) {
+	log := `=== CUSTOM STEP ===
+ERROR: connection refused
+service: database
+exit code: 1`
+
+	investigation := analyze(log)
+
+	if len(investigation.Failures) != 1 {
+		t.Fatalf(
+			"got %d failures, want 1",
+			len(investigation.Failures),
+		)
+	}
+
+	failure := investigation.Failures[0]
+
+	if failure.Category != "unknown_failure" {
+		t.Errorf(
+			"Category = %q, want unknown_failure",
+			failure.Category,
+		)
+	}
+
+	if failure.Evidence != log {
+		t.Errorf(
+			"Evidence = %q, want original log %q",
+			failure.Evidence,
+			log,
+		)
+	}
+
+	if failure.Confidence != "low" {
+		t.Errorf(
+			"Confidence = %q, want low",
+			failure.Confidence,
+		)
+	}
+}
+func TestAnalyzeUnknownFailureJSONContract(t *testing.T) {
+	log := `ERROR: connection refused
+service: database
+exit code: 1`
+
+	investigation := analyze(log)
+
+	data, err := json.Marshal(investigation)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	var result struct {
+		Failures []struct {
+			Category          string `json:"category"`
+			Severity          string `json:"severity"`
+			Evidence          string `json:"evidence"`
+			ProbableCause     string `json:"probable_cause"`
+			RecommendedAction string `json:"recommended_action"`
+			Confidence        string `json:"confidence"`
+		} `json:"failures"`
+	}
+
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	if len(result.Failures) != 1 {
+		t.Fatalf("got %d failures, want 1", len(result.Failures))
+	}
+
+	failure := result.Failures[0]
+
+	if failure.Category != "unknown_failure" {
+		t.Errorf("Category = %q, want unknown_failure", failure.Category)
+	}
+
+	if failure.Evidence != log {
+		t.Errorf("Evidence did not preserve original log")
+	}
+
+	if failure.ProbableCause == "" {
+		t.Error("ProbableCause should not be empty")
+	}
+
+	if failure.RecommendedAction == "" {
+		t.Error("RecommendedAction should not be empty")
+	}
+
+	if failure.Confidence != "low" {
+		t.Errorf("Confidence = %q, want low", failure.Confidence)
+	}
+}
+func TestAnalyzeUnknownFailureIdentifiesStep(t *testing.T) {
+	log := `=== CUSTOM STEP ===
+ERROR: connection refused
+service: database
+exit code: 1`
+
+	investigation := analyze(log)
+
+	if len(investigation.Failures) != 1 {
+		t.Fatalf(
+			"got %d failures, want 1",
+			len(investigation.Failures),
+		)
+	}
+
+	failure := investigation.Failures[0]
+
+	if failure.Category != "unknown_failure" {
+		t.Errorf(
+			"Category = %q, want unknown_failure",
+			failure.Category,
+		)
+	}
+
+	if failure.FailedStep != "CUSTOM STEP" {
+		t.Errorf(
+			"FailedStep = %q, want CUSTOM STEP",
+			failure.FailedStep,
+		)
+	}
+
+	if failure.Confidence != "low" {
+		t.Errorf(
+			"Confidence = %q, want low",
+			failure.Confidence,
+		)
+	}
+
+	if failure.Evidence != strings.TrimSpace(log) {
+		t.Error("Original evidence was not preserved")
 	}
 }
