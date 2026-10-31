@@ -764,3 +764,27 @@ FAIL	github.com/Alfredo-capitia/agentic-devops-lab/cmd/ci-investigator	0.004s`
 		t.Errorf("Confidence = %q, want high", report.Confidence)
 	}
 }
+func TestAnalyzeMultipleGenericGoTestFailures(t *testing.T) {
+	log := `=== TESTS ===
+=== RUN   TestDatabase
+    database_test.go:42: connection refused
+--- FAIL: TestDatabase (0.00s)
+=== RUN   TestCache
+    cache_test.go:18: unexpected nil value
+--- FAIL: TestCache (0.00s)
+FAIL`
+
+	result := analyze(log)
+
+	if len(result.Failures) != 2 {
+		t.Fatalf("Failures = %d, want 2", len(result.Failures))
+	}
+
+	if result.Failures[0].Location.File != "database_test.go" {
+		t.Errorf("First failure file = %q", result.Failures[0].Location.File)
+	}
+
+	if result.Failures[1].Location.File != "cache_test.go" {
+		t.Errorf("Second failure file = %q", result.Failures[1].Location.File)
+	}
+}
