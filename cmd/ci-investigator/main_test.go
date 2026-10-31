@@ -470,3 +470,23 @@ cmd/api_test.go:42: expected "success", got "failed"`
 			report.Message)
 	}
 }
+func TestAnalyzeFormattingFailureIncludesStructuredLocation(t *testing.T) {
+	log := `=== FORMATTING ===
+internal/server.go`
+
+	report := requireSingleFailure(t, analyze(log))
+
+	if report.Location == nil {
+		t.Fatal("Location must not be nil")
+	}
+
+	if report.Location.File != "internal/server.go" {
+		t.Errorf("Location.File = %q, want internal/server.go",
+			report.Location.File)
+	}
+
+	if report.Message != "File is not formatted with gofmt." {
+		t.Errorf("Message = %q, want File is not formatted with gofmt.",
+			report.Message)
+	}
+}

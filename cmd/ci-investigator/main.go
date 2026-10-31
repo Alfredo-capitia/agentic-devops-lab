@@ -67,6 +67,7 @@ func analyze(log string) Investigation {
 	hasSections := strings.Contains(log, "=== ")
 
 	// Formatting
+	// Formatting
 	formatLog, hasFormat := sectionLog(log, "FORMATTING")
 	if hasFormat &&
 		formatLog != "" &&
@@ -82,10 +83,14 @@ func analyze(log string) Investigation {
 			}
 
 			failures = append(failures, Report{
-				Category:    "format_failure",
-				Severity:    "medium",
-				FailedStep:  "Check formatting",
-				Evidence:    file,
+				Category:   "format_failure",
+				Severity:   "medium",
+				FailedStep: "Check formatting",
+				Evidence:   file,
+				Location: &SourceLocation{
+					File: file,
+				},
+				Message:     "File is not formatted with gofmt.",
 				Cause:       "One or more Go files are not correctly formatted.",
 				Remediation: "Run gofmt on the reported file and rerun CI.",
 				Confidence:  "high",
