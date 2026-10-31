@@ -727,3 +727,7 @@ All files are properly formatted.`
 		}
 	}
 }
+
+func TestIntentionalCIFailure(t *testing.T) {
+	t.Fatal("CI investigator simulation: intentional failure")
+}
