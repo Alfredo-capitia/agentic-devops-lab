@@ -417,3 +417,32 @@ func TestAnalyzeVetIgnoresPackageHeaders(t *testing.T) {
 		}
 	}
 }
+
+func TestAnalyzeCompileFailureIncludesStructuredLocation(t *testing.T) {
+	log := `=== BUILD ===
+internal/database/connection.go:42:5: undefined: missingFunction`
+
+	report := requireSingleFailure(t, analyze(log))
+
+	if report.Location == nil {
+		t.Fatal("Location must not be nil")
+	}
+
+	if report.Location.File != "internal/database/connection.go" {
+		t.Errorf("Location.File = %q, want internal/database/connection.go",
+			report.Location.File)
+	}
+
+	if report.Location.Line != 42 {
+		t.Errorf("Location.Line = %d, want 42", report.Location.Line)
+	}
+
+	if report.Location.Column != 5 {
+		t.Errorf("Location.Column = %d, want 5", report.Location.Column)
+	}
+
+	if report.Message != "undefined: missingFunction" {
+		t.Errorf("Message = %q, want undefined: missingFunction",
+			report.Message)
+	}
+}

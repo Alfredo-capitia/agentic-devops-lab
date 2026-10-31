@@ -41,7 +41,7 @@ var vetDiagnostic = regexp.MustCompile(
 )
 
 var compileFailure = regexp.MustCompile(
-	`(?m)^((?:\./)?[\w./-]+\.go:\d+:\d+:\s+.+)$`,
+	`^((?:\./)?[\w./-]+\.go):(\d+):(\d+):\s+(.+)$`,
 )
 
 func sectionLog(log, section string) (string, bool) {
@@ -158,6 +158,7 @@ func analyze(log string) Investigation {
 	}
 
 	// Build
+	// Build
 	buildLog, hasBuild := sectionLog(log, "BUILD")
 
 	if !hasBuild && !hasSections {
@@ -165,14 +166,35 @@ func analyze(log string) Investigation {
 	}
 
 	if hasBuild || !hasSections {
-		compileMatches := compileFailure.FindAllString(buildLog, -1)
+		for _, line := range strings.Split(buildLog, "\n") {
+			diagnostic := strings.TrimSpace(line)
 
-		for _, match := range compileMatches {
+			match := compileFailure.FindStringSubmatch(diagnostic)
+			if match == nil {
+				continue
+			}
+
+			lineNumber, err := strconv.Atoi(match[2])
+			if err != nil {
+				continue
+			}
+
+			columnNumber, err := strconv.Atoi(match[3])
+			if err != nil {
+				continue
+			}
+
 			failures = append(failures, Report{
-				Category:    "compile_failure",
-				Severity:    "high",
-				FailedStep:  "Build application",
-				Evidence:    match,
+				Category:   "compile_failure",
+				Severity:   "high",
+				FailedStep: "Build application",
+				Evidence:   diagnostic,
+				Location: &SourceLocation{
+					File:   match[1],
+					Line:   lineNumber,
+					Column: columnNumber,
+				},
+				Message:     match[4],
 				Cause:       "The Go compiler reported a source-level compilation error.",
 				Remediation: "Inspect the reported file and line, correct the compilation issue, and rerun the tests.",
 				Confidence:  "high",
