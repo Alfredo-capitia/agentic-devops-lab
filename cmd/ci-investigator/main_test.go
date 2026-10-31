@@ -446,3 +446,27 @@ internal/database/connection.go:42:5: undefined: missingFunction`
 			report.Message)
 	}
 }
+func TestAnalyzeTestFailureIncludesStructuredLocation(t *testing.T) {
+	log := `=== TESTS ===
+cmd/api_test.go:42: expected "success", got "failed"`
+
+	report := requireSingleFailure(t, analyze(log))
+
+	if report.Location == nil {
+		t.Fatal("Location must not be nil")
+	}
+
+	if report.Location.File != "cmd/api_test.go" {
+		t.Errorf("Location.File = %q, want cmd/api_test.go",
+			report.Location.File)
+	}
+
+	if report.Location.Line != 42 {
+		t.Errorf("Location.Line = %d, want 42", report.Location.Line)
+	}
+
+	if report.Message != `expected "success", got "failed"` {
+		t.Errorf("Message = %q, want expected \"success\", got \"failed\"",
+			report.Message)
+	}
+}

@@ -144,12 +144,32 @@ func analyze(log string) Investigation {
 		matches := assertionMismatch.FindAllStringSubmatch(testLog, -1)
 
 		for _, match := range matches {
+			lineNumber, err := strconv.Atoi(match[2])
+			if err != nil {
+				continue
+			}
+
+			message := fmt.Sprintf(
+				"expected %q, got %q",
+				match[3],
+				match[4],
+			)
+
 			failures = append(failures, Report{
 				Category:   "test_assertion_mismatch",
 				Severity:   "medium",
 				FailedStep: "Run tests",
-				Evidence: fmt.Sprintf("%s:%s: expected %q, got %q",
-					match[1], match[2], match[3], match[4]),
+				Evidence: fmt.Sprintf(
+					"%s:%s: %s",
+					match[1],
+					match[2],
+					message,
+				),
+				Location: &SourceLocation{
+					File: match[1],
+					Line: lineNumber,
+				},
+				Message:     message,
 				Cause:       "The test expectation differs from the actual value.",
 				Remediation: "Review the test expectation and application behavior before changing code.",
 				Confidence:  "high",
