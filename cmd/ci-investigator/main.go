@@ -44,21 +44,57 @@ var compileFailure = regexp.MustCompile(
 	`^((?:\./)?[\w./-]+\.go):(\d+):(\d+):\s+(.+)$`,
 )
 
+var testRunHeader = regexp.MustCompile(
+	`^=== RUN\s+([^\s]+)`,
+)
+
+var testFailureHeader = regexp.MustCompile(
+	`^--- FAIL: ([^\s(]+)`,
+)
+
+var testSourceLocation = regexp.MustCompile(
+	`^\s*([\w./-]+\.go):(\d+):\s*(.+)$`,
+)
+
+func isCISectionHeader(line string) bool {
+	switch strings.TrimSpace(line) {
+	case "=== FORMATTING ===",
+		"=== GO VET ===",
+		"=== TESTS ===",
+		"=== BUILD ===":
+		return true
+	default:
+		return false
+	}
+}
+
 func sectionLog(log, section string) (string, bool) {
 	marker := "=== " + section + " ==="
-	start := strings.Index(log, marker)
+	lines := strings.Split(log, "\n")
+
+	start := -1
+
+	for i, line := range lines {
+		if strings.TrimSpace(line) == marker {
+			start = i + 1
+			break
+		}
+	}
 
 	if start == -1 {
 		return "", false
 	}
 
-	content := log[start+len(marker):]
+	end := len(lines)
 
-	if end := strings.Index(content, "=== "); end >= 0 {
-		content = content[:end]
+	for i := start; i < len(lines); i++ {
+		if isCISectionHeader(lines[i]) {
+			end = i
+			break
+		}
 	}
 
-	return strings.TrimSpace(content), true
+	return strings.TrimSpace(strings.Join(lines[start:end], "\n")), true
 }
 
 func unknownSection(log string) string {
@@ -92,14 +128,90 @@ func unknownSection(log string) string {
 	return "unknown"
 }
 
+func analyzeGoTestFailures(testLog string) []Report {
+	var failures []Report
+	var currentBlock []string
+	var testName string
+
+	for _, line := range strings.Split(testLog, "\n") {
+		runMatch := testRunHeader.FindStringSubmatch(line)
+
+		if runMatch != nil {
+			testName = runMatch[1]
+			currentBlock = []string{line}
+			continue
+		}
+
+		failMatch := testFailureHeader.FindStringSubmatch(line)
+
+		if failMatch == nil {
+			if testName != "" {
+				currentBlock = append(currentBlock, line)
+			}
+			continue
+		}
+
+		currentBlock = append(currentBlock, line)
+
+		if testName == "" {
+			testName = failMatch[1]
+		}
+
+		evidence := strings.Join(currentBlock, "\n")
+
+		// Assertion mismatches already have a dedicated diagnostic.
+		if !assertionMismatch.MatchString(evidence) {
+			report := Report{
+				Category:   "test_failure",
+				Severity:   "medium",
+				FailedStep: "Run tests",
+				Evidence:   evidence,
+				Message:    "Test " + testName + " failed.",
+				Cause:      "A Go test failed.",
+				Remediation: "Inspect the failing test and its diagnostic " +
+					"before changing application code.",
+				Confidence: "high",
+			}
+
+			for _, diagnostic := range currentBlock {
+				match := testSourceLocation.FindStringSubmatch(diagnostic)
+
+				if match == nil {
+					continue
+				}
+
+				lineNumber, err := strconv.Atoi(match[2])
+				if err != nil {
+					continue
+				}
+
+				report.Location = &SourceLocation{
+					File: match[1],
+					Line: lineNumber,
+				}
+
+				report.Message = match[3]
+				break
+			}
+
+			failures = append(failures, report)
+		}
+
+		testName = ""
+		currentBlock = nil
+	}
+
+	return failures
+}
+
 func analyze(log string) Investigation {
 	var failures []Report
 
 	hasSections := strings.Contains(log, "=== ")
 
 	// Formatting
-	// Formatting
 	formatLog, hasFormat := sectionLog(log, "FORMATTING")
+
 	if hasFormat && formatLog != "" {
 		for _, line := range strings.Split(formatLog, "\n") {
 			file := strings.TrimSpace(line)
@@ -125,8 +237,8 @@ func analyze(log string) Investigation {
 	}
 
 	// Go vet
-	// Go vet
 	vetLog, hasVet := sectionLog(log, "GO VET")
+
 	if hasVet && vetLog != "" {
 		for _, line := range strings.Split(vetLog, "\n") {
 			diagnostic := strings.TrimSpace(line)
@@ -206,9 +318,13 @@ func analyze(log string) Investigation {
 				Confidence:  "high",
 			})
 		}
+
+		failures = append(
+			failures,
+			analyzeGoTestFailures(testLog)...,
+		)
 	}
 
-	// Build
 	// Build
 	buildLog, hasBuild := sectionLog(log, "BUILD")
 
@@ -254,7 +370,6 @@ func analyze(log string) Investigation {
 	}
 
 	// Unknown failure
-	// Unknown failure
 	if len(failures) == 0 {
 		evidence := strings.TrimSpace(log)
 
@@ -262,16 +377,23 @@ func analyze(log string) Investigation {
 			evidence = "No CI log output was provided."
 		}
 
+		failedStep := unknownSection(log)
+
+		if _, ok := sectionLog(log, "TESTS"); ok {
+			failedStep = "Run tests"
+		}
+
 		failures = append(failures, Report{
 			Category:    "unknown_failure",
 			Severity:    "undetermined",
-			FailedStep:  unknownSection(log),
+			FailedStep:  failedStep,
 			Evidence:    evidence,
 			Cause:       "The available log does not provide enough evidence for classification.",
 			Remediation: "Inspect the complete CI logs and identify the failing step.",
 			Confidence:  "low",
 		})
 	}
+
 	return Investigation{
 		Failures: failures,
 	}
