@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -488,5 +489,95 @@ internal/server.go`
 	if report.Message != "File is not formatted with gofmt." {
 		t.Errorf("Message = %q, want File is not formatted with gofmt.",
 			report.Message)
+	}
+}
+func TestAnalyzeJSONPreservesStructuredDiagnostics(t *testing.T) {
+	log := `=== FORMATTING ===
+internal/server.go
+=== GO VET ===
+internal/server.go:10:2: printf: invalid format
+=== TESTS ===
+cmd/api_test.go:42: expected "success", got "failed"
+=== BUILD ===
+./cmd/worker.go:20:3: undefined: missingWorker`
+
+	investigation := analyze(log)
+
+	data, err := json.Marshal(investigation)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	var result struct {
+		Failures []struct {
+			Category string `json:"category"`
+			Location *struct {
+				File   string `json:"file"`
+				Line   int    `json:"line"`
+				Column int    `json:"column"`
+			} `json:"location"`
+			Message string `json:"message"`
+		} `json:"failures"`
+	}
+
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	if len(result.Failures) != 4 {
+		t.Fatalf("got %d failures, want 4", len(result.Failures))
+	}
+
+	expectedCategories := []string{
+		"format_failure",
+		"vet_failure",
+		"test_assertion_mismatch",
+		"compile_failure",
+	}
+
+	for i, expected := range expectedCategories {
+		if result.Failures[i].Category != expected {
+			t.Errorf(
+				"Failures[%d].Category = %q, want %q",
+				i,
+				result.Failures[i].Category,
+				expected,
+			)
+		}
+
+		if result.Failures[i].Location == nil {
+			t.Fatalf("Failures[%d].Location is nil", i)
+		}
+	}
+
+	if result.Failures[0].Location.File != "internal/server.go" {
+		t.Errorf("Formatting location incorrect")
+	}
+
+	if result.Failures[1].Location.Column != 2 {
+		t.Errorf("Vet column = %d, want 2",
+			result.Failures[1].Location.Column)
+	}
+
+	if result.Failures[2].Location.Line != 42 {
+		t.Errorf("Test line = %d, want 42",
+			result.Failures[2].Location.Line)
+	}
+
+	if result.Failures[3].Location.Column != 3 {
+		t.Errorf("Compile column = %d, want 3",
+			result.Failures[3].Location.Column)
+	}
+
+	jsonOutput := string(data)
+
+	if !strings.Contains(jsonOutput,
+		`"location":{"file":"internal/server.go"}`) {
+		t.Error("Formatting JSON should omit unavailable line and column")
+	}
+
+	if !strings.Contains(jsonOutput,
+		`"message":"File is not formatted with gofmt."`) {
+		t.Error("Formatting message missing from JSON")
 	}
 }
