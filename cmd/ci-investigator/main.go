@@ -228,18 +228,24 @@ func analyze(log string) Investigation {
 	}
 
 	// Unknown failure
+	// Unknown failure
 	if len(failures) == 0 {
+		evidence := strings.TrimSpace(log)
+
+		if evidence == "" {
+			evidence = "No CI log output was provided."
+		}
+
 		failures = append(failures, Report{
 			Category:    "unknown_failure",
 			Severity:    "undetermined",
 			FailedStep:  "unknown",
-			Evidence:    "No recognized failure pattern was found.",
+			Evidence:    evidence,
 			Cause:       "The available log does not provide enough evidence for classification.",
 			Remediation: "Inspect the complete CI logs and identify the failing step.",
 			Confidence:  "low",
 		})
 	}
-
 	return Investigation{
 		Failures: failures,
 	}

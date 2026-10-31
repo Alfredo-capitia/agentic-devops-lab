@@ -581,3 +581,42 @@ cmd/api_test.go:42: expected "success", got "failed"
 		t.Error("Formatting message missing from JSON")
 	}
 }
+func TestAnalyzeUnknownFailurePreservesEvidence(t *testing.T) {
+	log := `=== CUSTOM STEP ===
+ERROR: connection refused
+service: database
+exit code: 1`
+
+	investigation := analyze(log)
+
+	if len(investigation.Failures) != 1 {
+		t.Fatalf(
+			"got %d failures, want 1",
+			len(investigation.Failures),
+		)
+	}
+
+	failure := investigation.Failures[0]
+
+	if failure.Category != "unknown_failure" {
+		t.Errorf(
+			"Category = %q, want unknown_failure",
+			failure.Category,
+		)
+	}
+
+	if failure.Evidence != log {
+		t.Errorf(
+			"Evidence = %q, want original log %q",
+			failure.Evidence,
+			log,
+		)
+	}
+
+	if failure.Confidence != "low" {
+		t.Errorf(
+			"Confidence = %q, want low",
+			failure.Confidence,
+		)
+	}
+}
