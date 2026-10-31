@@ -727,3 +727,40 @@ All files are properly formatted.`
 		}
 	}
 }
+func TestAnalyzeGenericGoTestFailure(t *testing.T) {
+	log := `=== TESTS ===
+=== RUN   TestIntentionalCIFailure
+    main_test.go:732: CI investigator simulation: intentional failure
+--- FAIL: TestIntentionalCIFailure (0.00s)
+FAIL	github.com/Alfredo-capitia/agentic-devops-lab/cmd/ci-investigator	0.004s`
+
+	report := requireSingleFailure(t, analyze(log))
+
+	if report.Category != "test_failure" {
+		t.Errorf("Category = %q, want test_failure", report.Category)
+	}
+
+	if report.FailedStep != "Run tests" {
+		t.Errorf("FailedStep = %q, want Run tests", report.FailedStep)
+	}
+
+	if report.Location == nil {
+		t.Fatal("Location must not be nil")
+	}
+
+	if report.Location.File != "main_test.go" {
+		t.Errorf("Location.File = %q, want main_test.go", report.Location.File)
+	}
+
+	if report.Location.Line != 732 {
+		t.Errorf("Location.Line = %d, want 732", report.Location.Line)
+	}
+
+	if report.Message != "CI investigator simulation: intentional failure" {
+		t.Errorf("Unexpected message: %q", report.Message)
+	}
+
+	if report.Confidence != "high" {
+		t.Errorf("Confidence = %q, want high", report.Confidence)
+	}
+}
