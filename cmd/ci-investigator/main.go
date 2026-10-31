@@ -100,16 +100,11 @@ func analyze(log string) Investigation {
 	// Formatting
 	// Formatting
 	formatLog, hasFormat := sectionLog(log, "FORMATTING")
-	if hasFormat &&
-		formatLog != "" &&
-		!strings.Contains(formatLog, "All Go files are formatted.") {
+	if hasFormat && formatLog != "" {
+		for _, line := range strings.Split(formatLog, "\n") {
+			file := strings.TrimSpace(line)
 
-		formatFiles := strings.Split(formatLog, "\n")
-
-		for _, file := range formatFiles {
-			file = strings.TrimSpace(file)
-
-			if file == "" {
+			if file == "" || !strings.HasSuffix(file, ".go") {
 				continue
 			}
 

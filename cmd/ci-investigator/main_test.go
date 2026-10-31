@@ -715,3 +715,15 @@ exit code: 1`
 		t.Error("Original evidence was not preserved")
 	}
 }
+func TestAnalyzeFormattingSuccessDoesNotReportFailure(t *testing.T) {
+	log := `=== FORMATTING ===
+All files are properly formatted.`
+
+	investigation := analyze(log)
+
+	for _, failure := range investigation.Failures {
+		if failure.Category == "format_failure" {
+			t.Fatal("successful formatting was incorrectly reported as a failure")
+		}
+	}
+}
