@@ -620,3 +620,56 @@ exit code: 1`
 		)
 	}
 }
+func TestAnalyzeUnknownFailureJSONContract(t *testing.T) {
+	log := `ERROR: connection refused
+service: database
+exit code: 1`
+
+	investigation := analyze(log)
+
+	data, err := json.Marshal(investigation)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	var result struct {
+		Failures []struct {
+			Category          string `json:"category"`
+			Severity          string `json:"severity"`
+			Evidence          string `json:"evidence"`
+			ProbableCause     string `json:"probable_cause"`
+			RecommendedAction string `json:"recommended_action"`
+			Confidence        string `json:"confidence"`
+		} `json:"failures"`
+	}
+
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	if len(result.Failures) != 1 {
+		t.Fatalf("got %d failures, want 1", len(result.Failures))
+	}
+
+	failure := result.Failures[0]
+
+	if failure.Category != "unknown_failure" {
+		t.Errorf("Category = %q, want unknown_failure", failure.Category)
+	}
+
+	if failure.Evidence != log {
+		t.Errorf("Evidence did not preserve original log")
+	}
+
+	if failure.ProbableCause == "" {
+		t.Error("ProbableCause should not be empty")
+	}
+
+	if failure.RecommendedAction == "" {
+		t.Error("RecommendedAction should not be empty")
+	}
+
+	if failure.Confidence != "low" {
+		t.Errorf("Confidence = %q, want low", failure.Confidence)
+	}
+}
