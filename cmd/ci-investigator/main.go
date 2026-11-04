@@ -28,9 +28,9 @@ type Report struct {
 	Confidence  string          `json:"confidence"`
 }
 
-type Investigation struct {
-	Failures []Report `json:"failures"`
-}
+// Investigation is kept for backward compatibility during migration.
+// Use InvestigationResult with deterministic_findings and ai_analysis.
+type Investigation = InvestigationResult
 
 var assertionMismatch = regexp.MustCompile(
 	`([\w./-]+\.go):(\d+): expected "([^"]*)", got "([^"]*)"`,
@@ -204,7 +204,7 @@ func analyzeGoTestFailures(testLog string) []Report {
 	return failures
 }
 
-func analyze(log string) Investigation {
+func analyze(log string) InvestigationResult {
 	var failures []Report
 
 	hasSections := strings.Contains(log, "=== ")
@@ -394,8 +394,13 @@ func analyze(log string) Investigation {
 		})
 	}
 
-	return Investigation{
-		Failures: failures,
+	return InvestigationResult{
+		DeterministicFindings: failures,
+		AIAnalysis: AIAnalysis{
+			Status:          "not_requested",
+			Hypotheses:      []AIHypothesis{},
+			Recommendations: []string{},
+		},
 	}
 }
 
