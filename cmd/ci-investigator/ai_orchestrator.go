@@ -29,7 +29,10 @@ func EnrichWithAI(result InvestigationResult, investigator AIInvestigator, cfg A
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	req := BuildAIRequest(result.DeterministicFindings)
+	req := AIRequest{
+		Failures:    PrepareFindingsForAI(result.DeterministicFindings, cfg.MaxContextSize),
+		MaxFindings: len(result.DeterministicFindings),
+	}
 
 	analysis, err := investigator.Investigate(ctx, req)
 	if err != nil {
