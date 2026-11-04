@@ -9,17 +9,17 @@ import (
 func requireSingleFailure(t *testing.T, investigation Investigation) Report {
 	t.Helper()
 
-	if len(investigation.Failures) != 1 {
-		t.Fatalf("got %d failures, want 1", len(investigation.Failures))
+	if len(investigation.DeterministicFindings) != 1 {
+		t.Fatalf("got %d failures, want 1", len(investigation.DeterministicFindings))
 	}
 
-	return investigation.Failures[0]
+	return investigation.DeterministicFindings[0]
 }
 
 func findFailure(t *testing.T, investigation Investigation, category string) Report {
 	t.Helper()
 
-	for _, failure := range investigation.Failures {
+	for _, failure := range investigation.DeterministicFindings {
 		if failure.Category == category {
 			return failure
 		}
@@ -94,9 +94,9 @@ third_test.go:30: expected "five", got "six"`
 
 	investigation := analyze(log)
 
-	if len(investigation.Failures) != 3 {
+	if len(investigation.DeterministicFindings) != 3 {
 		t.Fatalf("got %d failures, want 3",
-			len(investigation.Failures))
+			len(investigation.DeterministicFindings))
 	}
 
 	expectedFiles := []string{
@@ -106,15 +106,15 @@ third_test.go:30: expected "five", got "six"`
 	}
 
 	for i, expected := range expectedFiles {
-		if !strings.Contains(investigation.Failures[i].Evidence, expected) {
-			t.Errorf("Failures[%d] evidence = %q, want location %q",
-				i, investigation.Failures[i].Evidence, expected)
+		if !strings.Contains(investigation.DeterministicFindings[i].Evidence, expected) {
+			t.Errorf("DeterministicFindings[%d] evidence = %q, want location %q",
+				i, investigation.DeterministicFindings[i].Evidence, expected)
 		}
 	}
 
-	for i, failure := range investigation.Failures {
+	for i, failure := range investigation.DeterministicFindings {
 		if failure.Category != "test_assertion_mismatch" {
-			t.Errorf("Failures[%d].Category = %q, want test_assertion_mismatch",
+			t.Errorf("DeterministicFindings[%d].Category = %q, want test_assertion_mismatch",
 				i, failure.Category)
 		}
 	}
@@ -200,15 +200,15 @@ main_test.go:10: expected "A", got "B"
 		"compile_failure",
 	}
 
-	if len(investigation.Failures) != len(expected) {
+	if len(investigation.DeterministicFindings) != len(expected) {
 		t.Fatalf("got %d failures, want %d",
-			len(investigation.Failures), len(expected))
+			len(investigation.DeterministicFindings), len(expected))
 	}
 
 	for i, category := range expected {
-		if investigation.Failures[i].Category != category {
-			t.Errorf("Failures[%d].Category = %q, want %q",
-				i, investigation.Failures[i].Category, category)
+		if investigation.DeterministicFindings[i].Category != category {
+			t.Errorf("DeterministicFindings[%d].Category = %q, want %q",
+				i, investigation.DeterministicFindings[i].Category, category)
 		}
 	}
 }
@@ -295,9 +295,9 @@ internal/server.go:25:4: unreachable code`
 
 	investigation := analyze(log)
 
-	if len(investigation.Failures) != 2 {
+	if len(investigation.DeterministicFindings) != 2 {
 		t.Fatalf("got %d failures, want 2",
-			len(investigation.Failures))
+			len(investigation.DeterministicFindings))
 	}
 
 	expectedEvidence := []string{
@@ -306,15 +306,15 @@ internal/server.go:25:4: unreachable code`
 	}
 
 	for i, expected := range expectedEvidence {
-		failure := investigation.Failures[i]
+		failure := investigation.DeterministicFindings[i]
 
 		if failure.Category != "vet_failure" {
-			t.Errorf("Failures[%d].Category = %q, want vet_failure",
+			t.Errorf("DeterministicFindings[%d].Category = %q, want vet_failure",
 				i, failure.Category)
 		}
 
 		if !strings.Contains(failure.Evidence, expected) {
-			t.Errorf("Failures[%d].Evidence = %q, want %q",
+			t.Errorf("DeterministicFindings[%d].Evidence = %q, want %q",
 				i, failure.Evidence, expected)
 		}
 	}
@@ -328,9 +328,9 @@ cmd/worker.go`
 
 	investigation := analyze(log)
 
-	if len(investigation.Failures) != 3 {
+	if len(investigation.DeterministicFindings) != 3 {
 		t.Fatalf("got %d failures, want 3",
-			len(investigation.Failures))
+			len(investigation.DeterministicFindings))
 	}
 
 	expectedFiles := []string{
@@ -340,15 +340,15 @@ cmd/worker.go`
 	}
 
 	for i, expected := range expectedFiles {
-		failure := investigation.Failures[i]
+		failure := investigation.DeterministicFindings[i]
 
 		if failure.Category != "format_failure" {
-			t.Errorf("Failures[%d].Category = %q, want format_failure",
+			t.Errorf("DeterministicFindings[%d].Category = %q, want format_failure",
 				i, failure.Category)
 		}
 
 		if !strings.Contains(failure.Evidence, expected) {
-			t.Errorf("Failures[%d].Evidence = %q, want %q",
+			t.Errorf("DeterministicFindings[%d].Evidence = %q, want %q",
 				i, failure.Evidence, expected)
 		}
 	}
@@ -362,9 +362,9 @@ func TestAnalyzeReturnsAllCompileFailures(t *testing.T) {
 
 	investigation := analyze(log)
 
-	if len(investigation.Failures) != 3 {
+	if len(investigation.DeterministicFindings) != 3 {
 		t.Fatalf("got %d failures, want 3",
-			len(investigation.Failures))
+			len(investigation.DeterministicFindings))
 	}
 
 	expectedEvidence := []string{
@@ -374,20 +374,20 @@ func TestAnalyzeReturnsAllCompileFailures(t *testing.T) {
 	}
 
 	for i, expected := range expectedEvidence {
-		failure := investigation.Failures[i]
+		failure := investigation.DeterministicFindings[i]
 
 		if failure.Category != "compile_failure" {
-			t.Errorf("Failures[%d].Category = %q, want compile_failure",
+			t.Errorf("DeterministicFindings[%d].Category = %q, want compile_failure",
 				i, failure.Category)
 		}
 
 		if !strings.Contains(failure.Evidence, expected) {
-			t.Errorf("Failures[%d].Evidence = %q, want %q",
+			t.Errorf("DeterministicFindings[%d].Evidence = %q, want %q",
 				i, failure.Evidence, expected)
 		}
 
 		if failure.Severity != "high" {
-			t.Errorf("Failures[%d].Severity = %q, want high",
+			t.Errorf("DeterministicFindings[%d].Severity = %q, want high",
 				i, failure.Severity)
 		}
 	}
@@ -401,9 +401,9 @@ func TestAnalyzeVetIgnoresPackageHeaders(t *testing.T) {
 
 	investigation := analyze(log)
 
-	if len(investigation.Failures) != 2 {
+	if len(investigation.DeterministicFindings) != 2 {
 		t.Fatalf("got %d failures, want 2",
-			len(investigation.Failures))
+			len(investigation.DeterministicFindings))
 	}
 
 	expectedEvidence := []string{
@@ -412,9 +412,9 @@ func TestAnalyzeVetIgnoresPackageHeaders(t *testing.T) {
 	}
 
 	for i, expected := range expectedEvidence {
-		if !strings.Contains(investigation.Failures[i].Evidence, expected) {
-			t.Errorf("Failures[%d].Evidence = %q, want %q",
-				i, investigation.Failures[i].Evidence, expected)
+		if !strings.Contains(investigation.DeterministicFindings[i].Evidence, expected) {
+			t.Errorf("DeterministicFindings[%d].Evidence = %q, want %q",
+				i, investigation.DeterministicFindings[i].Evidence, expected)
 		}
 	}
 }
@@ -509,7 +509,7 @@ cmd/api_test.go:42: expected "success", got "failed"
 	}
 
 	var result struct {
-		Failures []struct {
+		DeterministicFindings []struct {
 			Category string `json:"category"`
 			Location *struct {
 				File   string `json:"file"`
@@ -517,15 +517,18 @@ cmd/api_test.go:42: expected "success", got "failed"
 				Column int    `json:"column"`
 			} `json:"location"`
 			Message string `json:"message"`
-		} `json:"failures"`
+		} `json:"deterministic_findings"`
+		AIAnalysis struct {
+			Status string `json:"status"`
+		} `json:"ai_analysis"`
 	}
 
 	if err := json.Unmarshal(data, &result); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
 
-	if len(result.Failures) != 4 {
-		t.Fatalf("got %d failures, want 4", len(result.Failures))
+	if len(result.DeterministicFindings) != 4 {
+		t.Fatalf("got %d failures, want 4", len(result.DeterministicFindings))
 	}
 
 	expectedCategories := []string{
@@ -536,37 +539,37 @@ cmd/api_test.go:42: expected "success", got "failed"
 	}
 
 	for i, expected := range expectedCategories {
-		if result.Failures[i].Category != expected {
+		if result.DeterministicFindings[i].Category != expected {
 			t.Errorf(
-				"Failures[%d].Category = %q, want %q",
+				"DeterministicFindings[%d].Category = %q, want %q",
 				i,
-				result.Failures[i].Category,
+				result.DeterministicFindings[i].Category,
 				expected,
 			)
 		}
 
-		if result.Failures[i].Location == nil {
-			t.Fatalf("Failures[%d].Location is nil", i)
+		if result.DeterministicFindings[i].Location == nil {
+			t.Fatalf("DeterministicFindings[%d].Location is nil", i)
 		}
 	}
 
-	if result.Failures[0].Location.File != "internal/server.go" {
+	if result.DeterministicFindings[0].Location.File != "internal/server.go" {
 		t.Errorf("Formatting location incorrect")
 	}
 
-	if result.Failures[1].Location.Column != 2 {
+	if result.DeterministicFindings[1].Location.Column != 2 {
 		t.Errorf("Vet column = %d, want 2",
-			result.Failures[1].Location.Column)
+			result.DeterministicFindings[1].Location.Column)
 	}
 
-	if result.Failures[2].Location.Line != 42 {
+	if result.DeterministicFindings[2].Location.Line != 42 {
 		t.Errorf("Test line = %d, want 42",
-			result.Failures[2].Location.Line)
+			result.DeterministicFindings[2].Location.Line)
 	}
 
-	if result.Failures[3].Location.Column != 3 {
+	if result.DeterministicFindings[3].Location.Column != 3 {
 		t.Errorf("Compile column = %d, want 3",
-			result.Failures[3].Location.Column)
+			result.DeterministicFindings[3].Location.Column)
 	}
 
 	jsonOutput := string(data)
@@ -589,14 +592,14 @@ exit code: 1`
 
 	investigation := analyze(log)
 
-	if len(investigation.Failures) != 1 {
+	if len(investigation.DeterministicFindings) != 1 {
 		t.Fatalf(
 			"got %d failures, want 1",
-			len(investigation.Failures),
+			len(investigation.DeterministicFindings),
 		)
 	}
 
-	failure := investigation.Failures[0]
+	failure := investigation.DeterministicFindings[0]
 
 	if failure.Category != "unknown_failure" {
 		t.Errorf(
@@ -633,25 +636,28 @@ exit code: 1`
 	}
 
 	var result struct {
-		Failures []struct {
+		DeterministicFindings []struct {
 			Category          string `json:"category"`
 			Severity          string `json:"severity"`
 			Evidence          string `json:"evidence"`
 			ProbableCause     string `json:"probable_cause"`
 			RecommendedAction string `json:"recommended_action"`
 			Confidence        string `json:"confidence"`
-		} `json:"failures"`
+		} `json:"deterministic_findings"`
+		AIAnalysis struct {
+			Status string `json:"status"`
+		} `json:"ai_analysis"`
 	}
 
 	if err := json.Unmarshal(data, &result); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
 
-	if len(result.Failures) != 1 {
-		t.Fatalf("got %d failures, want 1", len(result.Failures))
+	if len(result.DeterministicFindings) != 1 {
+		t.Fatalf("got %d failures, want 1", len(result.DeterministicFindings))
 	}
 
-	failure := result.Failures[0]
+	failure := result.DeterministicFindings[0]
 
 	if failure.Category != "unknown_failure" {
 		t.Errorf("Category = %q, want unknown_failure", failure.Category)
@@ -681,14 +687,14 @@ exit code: 1`
 
 	investigation := analyze(log)
 
-	if len(investigation.Failures) != 1 {
+	if len(investigation.DeterministicFindings) != 1 {
 		t.Fatalf(
 			"got %d failures, want 1",
-			len(investigation.Failures),
+			len(investigation.DeterministicFindings),
 		)
 	}
 
-	failure := investigation.Failures[0]
+	failure := investigation.DeterministicFindings[0]
 
 	if failure.Category != "unknown_failure" {
 		t.Errorf(
@@ -721,7 +727,7 @@ All files are properly formatted.`
 
 	investigation := analyze(log)
 
-	for _, failure := range investigation.Failures {
+	for _, failure := range investigation.DeterministicFindings {
 		if failure.Category == "format_failure" {
 			t.Fatal("successful formatting was incorrectly reported as a failure")
 		}
@@ -776,15 +782,15 @@ FAIL`
 
 	result := analyze(log)
 
-	if len(result.Failures) != 2 {
-		t.Fatalf("Failures = %d, want 2", len(result.Failures))
+	if len(result.DeterministicFindings) != 2 {
+		t.Fatalf("Failures = %d, want 2", len(result.DeterministicFindings))
 	}
 
-	if result.Failures[0].Location.File != "database_test.go" {
-		t.Errorf("First failure file = %q", result.Failures[0].Location.File)
+	if result.DeterministicFindings[0].Location.File != "database_test.go" {
+		t.Errorf("First failure file = %q", result.DeterministicFindings[0].Location.File)
 	}
 
-	if result.Failures[1].Location.File != "cache_test.go" {
-		t.Errorf("Second failure file = %q", result.Failures[1].Location.File)
+	if result.DeterministicFindings[1].Location.File != "cache_test.go" {
+		t.Errorf("Second failure file = %q", result.DeterministicFindings[1].Location.File)
 	}
 }
