@@ -413,22 +413,8 @@ func main() {
 
 	investigation := analyze(string(log))
 
-	cfg := LoadAIConfig()
-	if cfg.Enabled {
-		inv := NewAIInvestigator(cfg)
-		investigation = EnrichWithAI(investigation, inv, cfg)
-	} else {
-		if investigation.AIAnalysis.Status == "" {
-			investigation.AIAnalysis = AIAnalysis{
-				Status:          "not_requested",
-				Hypotheses:      []AIHypothesis{},
-				Recommendations: []string{},
-			}
-		}
-	}
-
 	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "   ")
+	encoder.SetIndent("", "  ")
 
 	if err := encoder.Encode(investigation); err != nil {
 		fmt.Fprintln(os.Stderr, "encode report:", err)
