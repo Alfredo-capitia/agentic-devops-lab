@@ -26,7 +26,7 @@ deploy software, or access production credentials.
 
 ## CI Investigator (deterministic + AI-ready)
 
-The `cmd/ci-investigator` tool reads CI logs from stdin and produces a structured JSON report.
+The `cmd/ci-investigator` tool reads CI logs from stdin and produces a structured report (JSON by default, or `--format markdown`).
 
 ### Output contract (v2)
 ```json
