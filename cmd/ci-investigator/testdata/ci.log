@@ -1,0 +1,10 @@
+=== FORMATTING ===
+All files are properly formatted.
+=== GO VET ===
+# example.com/app
+=== TESTS ===
+=== RUN   TestExample
+    example_test.go:12: expected "ok", got "fail"
+--- FAIL: TestExample (0.00s)
+FAIL
+=== BUILD ===
