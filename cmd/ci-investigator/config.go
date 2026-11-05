@@ -46,6 +46,12 @@ func NewAIInvestigator(cfg AIConfig) AIInvestigator {
 	switch strings.ToLower(strings.TrimSpace(cfg.Provider)) {
 	case "mock":
 		return NewMockAIInvestigator()
+	case "http":
+		p, err := NewHTTPAIProvider()
+		if err != nil {
+			return NewNoopAIInvestigator()
+		}
+		return p
 	case "noop", "":
 		return NewNoopAIInvestigator()
 	default:
