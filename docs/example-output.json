@@ -1,0 +1,23 @@
+{
+  "deterministic_findings": [
+    {
+      "category": "test_assertion_mismatch",
+      "severity": "medium",
+      "failed_step": "Run tests",
+      "evidence": "main_test.go:10: expected \"CI should fail\", got \"CI baseline ready\"",
+      "location": {
+        "file": "main_test.go",
+        "line": 10
+      },
+      "message": "expected \"CI should fail\", got \"CI baseline ready\"",
+      "probable_cause": "The test expectation differs from the actual value.",
+      "recommended_action": "Review the test expectation and application behavior before changing code.",
+      "confidence": "high"
+    }
+  ],
+  "ai_analysis": {
+    "status": "not_requested",
+    "hypotheses": [],
+    "recommendations": []
+  }
+}
