@@ -405,6 +405,18 @@ func analyze(log string) InvestigationResult {
 }
 
 func main() {
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "-v", "--version":
+			fmt.Println(Version)
+			return
+		case "-h", "--help":
+			fmt.Println("ci-investigator - reads CI logs from stdin and outputs structured JSON")
+			fmt.Println("Usage: ci-investigator [-v|--version] [-h|--help] < ci.log")
+			return
+		}
+	}
+
 	log, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "read input:", err)
