@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -164,5 +166,26 @@ func TestPrepareFindingsForAILimits(t *testing.T) {
 	out := PrepareFindingsForAI(findings, 1024)
 	if len(out) > DefaultMaxFindings {
 		t.Fatalf("should limit findings")
+	}
+}
+
+func TestHTTPAIProvider(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"status":"completed","hypotheses":[{"description":"db down","evidence":["x"],"confidence":"high"}],"recommendations":["retry"]}`))
+	}))
+	defer ts.Close()
+
+	t.Setenv("CI_INVESTIGATOR_AI_ENDPOINT", ts.URL)
+	p, err := NewHTTPAIProvider()
+	if err != nil {
+		t.Fatalf("NewHTTPAIProvider: %v", err)
+	}
+	out, err := p.Investigate(context.Background(), AIRequest{Failures: []AIRequestFailure{{Category: "test_failure", FailedStep: "Run tests", Evidence: "x"}}})
+	if err != nil {
+		t.Fatalf("Investigate: %v", err)
+	}
+	if out.Status != "completed" || len(out.Hypotheses) != 1 {
+		t.Fatalf("unexpected result: %+v", out)
 	}
 }
