@@ -405,15 +405,27 @@ func analyze(log string) InvestigationResult {
 }
 
 func main() {
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
+	format := "json"
+	args := os.Args[1:]
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch a {
 		case "-v", "--version":
 			fmt.Println(Version)
 			return
 		case "-h", "--help":
-			fmt.Println("ci-investigator - reads CI logs from stdin and outputs structured JSON")
-			fmt.Println("Usage: ci-investigator [-v|--version] [-h|--help] < ci.log")
+			fmt.Println("ci-investigator - reads CI logs from stdin and outputs structured report")
+			fmt.Println("Usage: ci-investigator [--format json|markdown] [-v|--version] [-h|--help] < ci.log")
 			return
+		case "--format":
+			if i+1 < len(args) {
+				format = args[i+1]
+				i++
+			}
+		default:
+			if strings.HasPrefix(a, "--format=") {
+				format = strings.TrimPrefix(a, "--format=")
+			}
 		}
 	}
 
@@ -425,11 +437,25 @@ func main() {
 
 	investigation := analyze(string(log))
 
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
+	// Optional AI enrichment (disabled by default)
+	cfg := LoadAIConfig()
+	if cfg.Enabled {
+		inv := NewAIInvestigator(cfg)
+		investigation = EnrichWithAI(investigation, inv, cfg)
+	}
 
-	if err := encoder.Encode(investigation); err != nil {
-		fmt.Fprintln(os.Stderr, "encode report:", err)
-		os.Exit(1)
+	switch format {
+	case "md", "markdown":
+		if err := WriteMarkdown(os.Stdout, investigation); err != nil {
+			fmt.Fprintln(os.Stderr, "encode report:", err)
+			os.Exit(1)
+		}
+	default:
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(investigation); err != nil {
+			fmt.Fprintln(os.Stderr, "encode report:", err)
+			os.Exit(1)
+		}
 	}
 }
